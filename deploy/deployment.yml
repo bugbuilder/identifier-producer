@@ -1,0 +1,74 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: identifier-producer
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: identifier-producer
+  strategy:
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: identifier-producer
+      annotations:
+        fluentbit.io/parser: klog
+    spec:
+      containers:
+        - name: identifier-producer
+          image: bennu/identifier-producer:latest
+          imagePullPolicy: Always
+          env:
+            - name: NODE
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: POD
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+          args:
+            - --server
+          ports:
+            - name: id-port
+              containerPort: 8080
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+              scheme: HTTP
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 5
+            successThreshold: 1
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+              scheme: HTTP
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 5
+            successThreshold: 1
+            failureThreshold: 3
+          volumeMounts:
+            - name: kafka-config
+              mountPath: /kafka.yml
+              subPath: kafka.yml
+          resources:
+            requests:
+              memory: 32Mi
+              cpu: 65m
+            limits:
+              memory: 32Mi
+              cpu: 65m
+      volumes:
+        - name: kafka-config
+          configMap:
+            name: cm-identifier-producer

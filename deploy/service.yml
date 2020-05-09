@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: identifier-producer
+spec:
+  ports:
+  - port: 80
+    targetPort: id-port
+    protocol: TCP
+    name: http
+  type: ClusterIP
+  selector:
+    app: identifier-producer
+

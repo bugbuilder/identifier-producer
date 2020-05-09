@@ -1,0 +1,16 @@
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: identifier-producer
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    nginx.ingress.kubernetes.io/app-root: /identifier
+spec:
+  rules:
+    - host: api.bennu.cl
+      http:
+        paths:
+          - path: /
+            backend:
+              serviceName: identifier-producer
+              servicePort: http

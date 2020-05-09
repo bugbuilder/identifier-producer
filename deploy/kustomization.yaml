@@ -1,0 +1,12 @@
+commonLabels:
+  app: identifier-producer
+
+namespace: demo-kafka
+
+resources:
+  - namespace.yml
+  - configmap.yml
+  - deployment.yml
+  - hpa.yml
+  - service.yml
+  - ingress.yml
