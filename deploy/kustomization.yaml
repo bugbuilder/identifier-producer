@@ -4,7 +4,6 @@ commonLabels:
 namespace: demo-kafka
 
 resources:
-  - namespace.yml
   - configmap.yml
   - deployment.yml
   - hpa.yml
