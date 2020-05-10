@@ -3,53 +3,50 @@ package handlers
 import (
 	"bennu.cl/identifier-producer/pkg/api"
 	"bennu.cl/identifier-producer/pkg/kafka"
-	"github.com/gin-gonic/gin"
+	"encoding/json"
+	"fmt"
 	"k8s.io/klog"
 	"net/http"
 	"syscall"
 )
 
-func Producer(ids api.IdentifierService) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		var id api.Identifier
+type Message struct {
+}
 
-		if err := c.BindJSON(&id); err == nil {
-			key, err := ids.Save(id)
-			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{
-					"message": "Producer failed",
-					"error":   err.Error(),
-				})
+func Producer(ids api.IdentifierService) http.HandlerFunc {
+	var id api.Identifier
 
-				syscall.Kill(syscall.Getpid(), syscall.SIGINT)
-			} else {
-				c.JSON(http.StatusCreated, gin.H{"key": key})
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost {
+			if err := json.NewDecoder(r.Body).Decode(id); err != nil {
+				if key, err := ids.Save(id); err == nil {
+					w.Header().Set("Content-Type", "application/json; charset=utf-8")
+					w.WriteHeader(http.StatusCreated)
+					fmt.Fprintln(w, fmt.Sprintf("{\"key\":\"%s\"}", key))
+				} else {
+					http.Error(w, "Invalid request method", http.StatusInternalServerError)
+					// any error we stop the server to stop receiving request
+					syscall.Kill(syscall.Getpid(), syscall.SIGINT)
+				}
 			}
 		} else {
-			c.JSON(http.StatusBadRequest, gin.H{
-				"error:": "BadRequest",
-				"mesage": "The request could not be understood by the server due to malformed syntax",
-			})
+			http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
 		}
 	}
 }
 
-func Healthz(h kafka.Healthz) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		if err := h.AvailableCluster(); err != nil {
-			klog.Errorf("%s", err)
-			c.JSON(http.StatusServiceUnavailable, gin.H{
-				"message": "AvailableCluster failed",
-				"error":   err.Error(),
-			})
-		}
+func Healthz(h kafka.Healthz) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			if err := h.AvailableCluster(); err != nil {
+				klog.Errorf("%s", err)
+				http.Error(w, "AvailableCluster failed", http.StatusServiceUnavailable)
+			}
 
-		if err := h.AvailablePartitions(); err != nil {
-			klog.Errorf("%s", err)
-			c.JSON(http.StatusServiceUnavailable, gin.H{
-				"message": "AvailablePartitions failed",
-				"error":   err.Error(),
-			})
+			if err := h.AvailablePartitions(); err != nil {
+				klog.Errorf("%s", err)
+				http.Error(w, "AvailablePartitions failed", http.StatusServiceUnavailable)
+			}
 		}
 	}
 }

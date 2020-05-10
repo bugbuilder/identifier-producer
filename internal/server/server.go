@@ -5,7 +5,6 @@ import (
 	"bennu.cl/identifier-producer/pkg/api"
 	"bennu.cl/identifier-producer/pkg/kafka"
 	"context"
-	"github.com/gin-gonic/gin"
 	"k8s.io/klog"
 	"net/http"
 	"os"
@@ -14,35 +13,33 @@ import (
 	"time"
 )
 
-type Identifier struct {
-	router *gin.Engine
-
+type Server struct {
 	identifier api.IdentifierService
 	healthz    kafka.Healthz
 }
 
-func NewServer(ids api.IdentifierService, healthz kafka.Healthz) *Identifier {
-	srv := &Identifier{}
+func NewServer(ids api.IdentifierService, healthz kafka.Healthz) *Server {
+	srv := &Server{}
 
-	r := gin.New()
-
-	srv.router = r
 	srv.identifier = ids
 	srv.healthz = healthz
-	srv.setRouters()
 
 	return srv
 }
 
-func (srv *Identifier) setRouters() {
-	srv.router.GET("/healthz", handlers.Healthz(srv.healthz))
-	srv.router.POST("/identifier", handlers.Producer(srv.identifier))
-}
+func (srv *Server) Run() {
+	mux := http.NewServeMux()
 
-func (srv *Identifier) Run() {
+	mux.HandleFunc("/identifier", handlers.Producer(srv.identifier))
+	mux.HandleFunc("/healthz", handlers.Healthz(srv.healthz))
+
 	s := &http.Server{
-		Addr:    ":8080",
-		Handler: srv.router,
+		Addr:              ":8080",
+		Handler:           mux,
+		ReadTimeout:       10 * time.Second,
+		ReadHeaderTimeout: 10 * time.Second,
+		WriteTimeout:      300 * time.Second,
+		IdleTimeout:       120 * time.Second,
 	}
 
 	go func() {
