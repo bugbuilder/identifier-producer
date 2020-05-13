@@ -16,5 +16,4 @@ FROM scratch
 
 COPY --from=build /src/producer /producer
 
-ENV GIN_MODE release
 ENTRYPOINT [ "/producer"  ]

@@ -12,7 +12,7 @@ import (
 
 var cli sarama.Client
 
-func getClient(brokers []string) (sarama.Client, error) {
+func GetClient(brokers []string) (sarama.Client, error) {
 	if cli == nil {
 		config := sarama.NewConfig()
 		config.Version = sarama.V2_4_0_0
@@ -26,7 +26,7 @@ func getClient(brokers []string) (sarama.Client, error) {
 		klog.Infof("connected to %s", brokers)
 		cli = client
 
-		close(brokers)
+		Close(brokers)
 
 		return cli, nil
 	}
@@ -34,7 +34,7 @@ func getClient(brokers []string) (sarama.Client, error) {
 	return cli, nil
 }
 
-func close(b []string) {
+func Close(b []string) {
 	go func() {
 		quit := make(chan os.Signal)
 

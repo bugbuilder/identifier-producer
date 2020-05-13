@@ -1,8 +1,8 @@
-package api
+package identifier
 
 import (
+	"bennu.cl/identifier-producer/api/types"
 	"bennu.cl/identifier-producer/config"
-	"bennu.cl/identifier-producer/pkg/api"
 	"bennu.cl/identifier-producer/pkg/kafka"
 	"fmt"
 	"k8s.io/klog"
@@ -13,28 +13,28 @@ import (
 )
 
 type Message struct {
-	api.Identifier
+	types.Identifier
 	Node      string `json:"node"`
 	Pod       string `json:"pod"`
 	CreatedOn string `json:"createdOn"`
 }
 
-type identifier struct {
+type identifierProducer struct {
 	producer kafka.Producer
 }
 
-func NewIdentifierProducer(c config.Config) (api.IdentifierService, error) {
+func NewIdentifierProducer(c config.Config) (Service, error) {
 	p, err := kafka.NewProducer(c)
 	if err != nil {
 		return nil, err
 	}
 
-	return &identifier{
+	return &identifierProducer{
 		producer: p,
 	}, nil
 }
 
-func (i *identifier) Save(id api.Identifier) (string, error) {
+func (i *identifierProducer) Save(id types.Identifier) (string, error) {
 	key, m := i.getMessage(id)
 
 	err := i.producer.SendMessage(key, m)
@@ -46,7 +46,7 @@ func (i *identifier) Save(id api.Identifier) (string, error) {
 	return key, nil
 }
 
-func (i *identifier) getMessage(id api.Identifier) (string, Message) {
+func (i *identifierProducer) getMessage(id types.Identifier) (string, Message) {
 	pod := os.Getenv("POD")
 
 	node := os.Getenv("NODE")

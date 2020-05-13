@@ -23,7 +23,7 @@ func NewProducer(c config.Config) (Producer, error) {
 		return nil, err
 	}
 
-	cli, err := getClient(m.Brokers)
+	cli, err := GetClient(m.Brokers)
 	if err != nil {
 		return nil, err
 	}

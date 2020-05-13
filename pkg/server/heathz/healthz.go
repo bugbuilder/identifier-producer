@@ -1,7 +1,8 @@
-package kafka
+package heathz
 
 import (
 	"bennu.cl/identifier-producer/config"
+	"bennu.cl/identifier-producer/pkg/kafka"
 	"fmt"
 	"github.com/Shopify/sarama"
 )
@@ -14,16 +15,16 @@ type Healthz interface {
 type Admin struct {
 	admin    sarama.ClusterAdmin
 	client   sarama.Client
-	metadata Metadata
+	metadata kafka.Metadata
 }
 
 func NewHealthz(c config.Config) (Healthz, error) {
-	m, err := ParseMetadata(c)
+	m, err := kafka.ParseMetadata(c)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing kafka metadata: %s", err)
 	}
 
-	cl, err := getClient(m.Brokers)
+	cl, err := kafka.GetClient(m.Brokers)
 	if err != nil {
 		return nil, err
 	}
