@@ -4,12 +4,15 @@ import (
 	"bennu.cl/identifier-producer/api/server"
 	"bennu.cl/identifier-producer/api/server/identifier"
 	"bennu.cl/identifier-producer/config"
-	identifier2 "bennu.cl/identifier-producer/pkg/identifier"
+	"bennu.cl/identifier-producer/pkg/core"
+	"bennu.cl/identifier-producer/pkg/heathz/server/handlers"
+	"bennu.cl/identifier-producer/pkg/kafka"
 	"bennu.cl/identifier-producer/version"
 	"flag"
 	"fmt"
 	"k8s.io/klog"
 	"math/rand"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -41,6 +44,7 @@ func main() {
 		fmt.Println(version.NewInfo().Print())
 		os.Exit(0)
 	}
+
 	if !*startServer {
 		flag.Usage()
 		os.Exit(0)
@@ -51,7 +55,9 @@ func main() {
 		klog.Fatalf("Config initialization failed: %s", err)
 	}
 
-	ids, err := identifier2.NewIdentifierProducer(c)
+	startHealthzServer(c)
+
+	ids, err := core.NewIdentifierProducer(c)
 	if err != nil {
 		klog.Fatalf("Producer initialization failed: %s", err)
 	}
@@ -63,16 +69,41 @@ func main() {
 
 	s.InitRouter(routers...)
 
+	go gracefulShutdown(s)
+
 	errRun := make(chan error)
 	go s.Run(errRun)
-
-	go gracefulShutdown(s)
 
 	errAPISrv := <-errRun
 	if errAPISrv != nil {
 		klog.Fatalf("shutting down due to API Server error: %s", errAPISrv)
-		os.Exit(1)
 	}
+}
+
+func startHealthzServer(c config.Config) {
+	k, err := kafka.NewKafka(c)
+	if err != nil {
+		klog.Fatalf("healthz initialization failed: %s", err)
+	}
+
+	mux := http.NewServeMux()
+	mux.Handle("/healthz", handlers.Healthz(k))
+
+	srv := &http.Server{
+		Addr:              ":8081",
+		Handler:           mux,
+		ReadTimeout:       10 * time.Second,
+		ReadHeaderTimeout: 10 * time.Second,
+		WriteTimeout:      300 * time.Second,
+		IdleTimeout:       120 * time.Second,
+	}
+
+	go func() {
+		klog.Infof("Healthz running on %s", srv.Addr)
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			klog.Fatalf("shutting down due to healthz error: %s", err)
+		}
+	}()
 }
 
 func gracefulShutdown(s *server.Server) {
@@ -88,7 +119,6 @@ func gracefulShutdown(s *server.Server) {
 	errAPISrv := <-errShutdown
 	if errAPISrv != nil {
 		klog.Fatalf("shutting down due to API Server error: %s", errAPISrv)
-		exitCode = 1
 	}
 
 	klog.Infof("awaiting kafka shutting down")

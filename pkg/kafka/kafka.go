@@ -3,53 +3,110 @@ package kafka
 import (
 	"bennu.cl/identifier-producer/config"
 	"errors"
+	"fmt"
 	"github.com/Shopify/sarama"
 	"k8s.io/klog"
-	"os"
-	"os/signal"
-	"syscall"
 )
 
-var cli sarama.Client
+type Kafka interface {
+	AvailablePartitions() error
+	AvailableCluster() error
+	GetProducer() (sarama.SyncProducer, error)
+	Close() error
+}
 
-func GetClient(brokers []string) (sarama.Client, error) {
-	if cli == nil {
+type kafka struct {
+	admin    sarama.ClusterAdmin
+	client   sarama.Client
+	metadata Metadata
+}
+
+var kcl *kafka
+
+func NewKafka(c config.Config) (Kafka, error) {
+	if kcl == nil {
+		m, err := parseMetadata(c)
+		if err != nil {
+			return nil, fmt.Errorf("error parsing kafka metadata: %s", err)
+		}
+
 		config := sarama.NewConfig()
 		config.Version = sarama.V2_4_0_0
 		config.Net.MaxOpenRequests = 1
 
-		client, err := sarama.NewClient(brokers, config)
+		client, err := sarama.NewClient(m.Brokers, config)
 		if err != nil {
 			return nil, err
 		}
+		klog.Infof("connected to %s", m.Brokers)
 
-		klog.Infof("connected to %s", brokers)
-		cli = client
+		admin, err := sarama.NewClusterAdminFromClient(client)
+		if err != nil {
+			return nil, fmt.Errorf("error creating kafka admin: %s", err)
+		}
+		kcl = &kafka{
+			client:   client,
+			admin:    admin,
+			metadata: m,
+		}
+	}
+	return kcl, nil
+}
 
-		Close(brokers)
-
-		return cli, nil
+func (k *kafka) AvailablePartitions() error {
+	topicsMetadata, err := k.admin.DescribeTopics([]string{k.metadata.Topic})
+	if err != nil {
+		return fmt.Errorf("error describing topics: %s", err)
 	}
 
-	return cli, nil
+	if len(topicsMetadata) != 1 {
+		return fmt.Errorf("expected only 1 topic metadata, got %d", len(topicsMetadata))
+	}
+
+	if len(topicsMetadata[0].Partitions) == 0 {
+		return fmt.Errorf("expected at least 1 partition, got 0")
+	}
+
+	return nil
 }
 
-func Close(b []string) {
-	go func() {
-		quit := make(chan os.Signal)
+func (k *kafka) AvailableCluster() error {
+	brokers := k.metadata.Brokers
+	if len(brokers) == 0 {
+		return fmt.Errorf("expected at least 1 broker, got 0")
+	}
 
-		signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-		<-quit
+	if err := k.client.RefreshMetadata(k.metadata.Topic); err != nil {
+		return fmt.Errorf("error refreshing metadata: %s", err)
+	}
 
-		if err := cli.Close(); err != nil {
-			klog.Infof("failed to shut down client: %s", err)
-		}
-
-		klog.Infof("disconnected from %s", b)
-	}()
+	return nil
 }
 
-func ParseMetadata(c config.Config) (Metadata, error) {
+func (k *kafka) Close() error {
+	if err := k.client.Close(); err != nil {
+		klog.Infof("failed to shutting down due to client error: %s", err)
+		return err
+	}
+	return nil
+}
+
+func (k *kafka) GetProducer() (sarama.SyncProducer, error) {
+	k.client.Config().Producer.RequiredAcks = sarama.WaitForAll
+	k.client.Config().Producer.Retry.Max = 10
+	k.client.Config().Producer.Return.Successes = true
+	k.client.Config().Producer.Idempotent = true
+	k.client.Config().Producer.Return.Errors = true
+
+	producer, err := sarama.NewSyncProducerFromClient(k.client)
+	if err != nil {
+		return nil, fmt.Errorf("error creating kafka producer: %s", err)
+	}
+
+	return producer, nil
+}
+
+func parseMetadata(c config.Config) (Metadata, error) {
 	meta := Metadata{}
 
 	if c.Brokers == "" {

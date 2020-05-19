@@ -2,15 +2,15 @@ package identifier
 
 import (
 	"bennu.cl/identifier-producer/api/server"
-	"bennu.cl/identifier-producer/pkg/identifier"
+	"bennu.cl/identifier-producer/pkg/core"
 )
 
 type identifierRouter struct {
-	api    identifier.Service
+	api    core.Service
 	routes []server.Route
 }
 
-func NewRouter(ids identifier.Service) server.Router {
+func NewRouter(ids core.Service) server.Router {
 	r := &identifierRouter{
 		api: ids,
 	}

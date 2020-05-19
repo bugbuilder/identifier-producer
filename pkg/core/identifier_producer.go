@@ -1,4 +1,4 @@
-package identifier
+package core
 
 import (
 	"bennu.cl/identifier-producer/api/types"

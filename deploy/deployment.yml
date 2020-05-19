@@ -37,26 +37,26 @@ spec:
           ports:
             - name: id-port
               containerPort: 8080
-              #          livenessProbe:
-              #            httpGet:
-              #              path: /healthz
-              #              port: 8080
-              #              scheme: HTTP
-              #            initialDelaySeconds: 10
-              #            periodSeconds: 5
-              #            timeoutSeconds: 5
-              #            successThreshold: 1
-              #            failureThreshold: 3
-              #          readinessProbe:
-              #            httpGet:
-              #              path: /healthz
-              #              port: 8080
-              #              scheme: HTTP
-              #            initialDelaySeconds: 10
-              #            periodSeconds: 5
-              #            timeoutSeconds: 5
-              #            successThreshold: 1
-              #            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8081
+              scheme: HTTP
+            initialDelaySeconds: 20
+            periodSeconds: 5
+            timeoutSeconds: 5
+            successThreshold: 1
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8081
+              scheme: HTTP
+            initialDelaySeconds: 20
+            periodSeconds: 5
+            timeoutSeconds: 5
+            successThreshold: 1
+            failureThreshold: 3
           volumeMounts:
             - name: kafka-config
               mountPath: /kafka.yml
@@ -64,10 +64,10 @@ spec:
           resources:
             requests:
               memory: 32Mi
-              cpu: 50m
+              cpu: 25m
             limits:
               memory: 32Mi
-              cpu: 50m
+              cpu: 25m
       volumes:
         - name: kafka-config
           configMap:
